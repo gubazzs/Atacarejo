@@ -1,0 +1,41 @@
+import { NextResponse } from "next/server";
+import axios from "axios";
+import { supabase } from "@/lib/supabase";
+import { createPromotion, registerCallback } from "@/lib/discounts";
+
+export async function GET(req: Request) {
+  const code = new URL(req.url).searchParams.get("code");
+  if (!code) {
+    return NextResponse.json({ error: "code não encontrado" }, { status: 400 });
+  }
+
+  // troca o code por access_token
+  const tokenRes = await axios.post(process.env.TIENDANUBE_AUTH_URL!, {
+    client_id: process.env.CLIENT_ID,
+    client_secret: process.env.CLIENT_SECRET,
+    grant_type: "authorization_code",
+    code,
+  });
+  const cred = tokenRes.data; // { access_token, scope, user_id }
+  const storeId = Number(cred.user_id);
+
+  // salva a loja no Supabase
+  await supabase.from("stores").upsert(
+    { store_id: storeId, access_token: cred.access_token, scope: cred.scope },
+    { onConflict: "store_id" }
+  );
+
+  // cria promoção + registra callback (não trava a instalação se falhar)
+  try {
+    const promotionId = await createPromotion(storeId);
+    await supabase.from("stores").update({ promotion_id: promotionId }).eq("store_id", storeId);
+    await registerCallback(
+      storeId,
+      `${process.env.SUPABASE_URL}/functions/v1/discounts-callback`
+    );
+  } catch (e) {
+    console.error("Erro setup atacado:", e);
+  }
+
+  return NextResponse.json(cred);
+}
