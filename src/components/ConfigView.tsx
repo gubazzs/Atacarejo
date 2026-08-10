@@ -4,8 +4,11 @@ import { useEffect, useState } from "react";
 import { Layout, Page } from "@nimbus-ds/patterns";
 import { Box, Button, Card, Input, Label, Spinner, Text } from "@nimbus-ds/components";
 import { api } from "@/lib/api";
-import { navigateHeader } from "@tiendanube/nexo";
+import { navigateHeader, navigateHeaderRemove } from "@tiendanube/nexo";
 import nexo from "@/components/NexoClient";
+
+// nome interno da action ACTION_NAVIGATE_SYNC (o subpath /actions não existe nesta versão)
+const ACTION_NAVIGATE_SYNC = "app/navigate/sync";
 
 export default function ConfigView({ onVoltar }: { onVoltar: () => void }) {
   const [min, setMin] = useState("3");
@@ -21,8 +24,23 @@ export default function ConfigView({ onVoltar }: { onVoltar: () => void }) {
   }, []);
 
   useEffect(() => {
-      navigateHeader(nexo, { goTo: '/', text: 'Voltar ao Atacado' });
- }, []);
+    // mostra o botão "Voltar ao Atacado" no header do admin
+    navigateHeader(nexo, { goTo: "/", text: "Voltar ao Atacado" });
+
+    // o clique no botão faz o admin navegar e devolver ACTION_NAVIGATE_SYNC;
+    // como este app troca de tela por estado (não por rota), a gente escuta
+    // esse evento e chama onVoltar pra voltar pra tela de atacado.
+    const unsub = nexo.suscribe(ACTION_NAVIGATE_SYNC, (payload: any) => {
+      const path = payload?.path ?? payload?.pathname;
+      if (path === "/" || path === "") onVoltar();
+    });
+
+    // ao sair da ConfigView: cancela o listener e remove o botão do header
+    return () => {
+      if (typeof unsub === "function") unsub();
+      navigateHeaderRemove(nexo);
+    };
+  }, []);
 
   const salvar = async () => {
     try {
