@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import axios from "axios";
 import { supabase } from "@/lib/supabase";
-import { createPromotion, registerCallback } from "@/lib/discounts";
+import {
+  createPromotion,
+  registerCallback,
+  registerUninstallWebhook,
+} from "@/lib/discounts";
 
 export async function GET(req: Request) {
   const code = new URL(req.url).searchParams.get("code");
@@ -32,6 +36,11 @@ export async function GET(req: Request) {
     await registerCallback(
       storeId,
       `${process.env.SUPABASE_URL}/functions/v1/discounts-callback`
+    );
+    // webhook de desinstalação (URL pública — não pode ser localhost)
+    await registerUninstallWebhook(
+      storeId,
+      `${process.env.APP_URL}/api/webhooks/app-uninstalled`
     );
   } catch (e) {
     console.error("Erro setup atacado:", e);

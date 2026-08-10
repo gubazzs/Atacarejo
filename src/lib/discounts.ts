@@ -14,3 +14,9 @@ export async function registerCallback(storeId: number, url: string): Promise<vo
   const client = await nuvemshopClient(storeId);
   await client.put(`${storeId}/discounts/callbacks`, { url });
 }
+
+// Registra o webhook de desinstalação (via API — os de LGPD ficam no Painel).
+export async function registerUninstallWebhook(storeId: number, url: string): Promise<void> {
+  const client = await nuvemshopClient(storeId);
+  await client.post(`${storeId}/webhooks`, { event: "app/uninstalled", url });
+}

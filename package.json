@@ -18,6 +18,8 @@
     "@nimbus-ds/styles": "^9.66.0",
     "@supabase/supabase-js": "^2.112.2",
     "@tiendanube/nexo": "^1.3.1",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.38.2",
     "axios": "^1.19.0",
     "date-fns": "^4.4.0",
     "jsonwebtoken": "^9.0.3",

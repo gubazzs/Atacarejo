@@ -1,13 +1,20 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { originPermitido } from "@/lib/allowedOrigin";
 
 // Rota pública: o storefront lê o min_quantity da loja (via view stores_config).
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ storeId: string }> }
 ) {
+  const origin = originPermitido(req);
+  if (!origin) {
+    // origem não permitida -> redireciona sem revelar o motivo
+    return NextResponse.redirect("https://nextcubeinc.com");
+  }
+
   const { storeId } = await params;
-  const cors = { "Access-Control-Allow-Origin": "*" };
+  const cors = { "Access-Control-Allow-Origin": origin };
 
   const { data, error } = await supabase
     .from("stores_config")

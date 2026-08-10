@@ -41,12 +41,44 @@ export default function AdminApp() {
   const [salvo, setSalvo] = useState(false);
   const [produtos, setProdutos] = useState<Product[]>([]);
   const [precos, setPrecos] = useState<Record<number, string>>({});
-  // true = está embutido no admin (iframe). false = abriram a URL direto.
-  const [emIframe, setEmIframe] = useState(true);
+  // só libera a tela depois de passar no guard (iframe + domínio Nuvemshop)
+  const [liberado, setLiberado] = useState(false);
 
-  // guard: este app só deve rodar dentro do admin da Nuvemshop (iframe)
+  // guard: o app só roda embutido no admin da Nuvemshop.
+  // fora do iframe OU embutido por um domínio que não é Nuvemshop -> redireciona.
   useEffect(() => {
-    setEmIframe(window.self !== window.top);
+    const DESTINO = "https://nextcubeinc.com";
+    const DOMINIOS_OK = [
+      "tiendanube.com",
+      "nuvemshop.com.br",
+      "nuvemshop.com",
+      "lojavirtualnuvem.com.br",
+    ];
+
+    // 1) não está em iframe -> abriram a URL direto
+    if (window.self === window.top) {
+      window.location.replace(DESTINO);
+      return;
+    }
+
+    // 2) domínio do pai (quando dá pra saber): se claramente NÃO é Nuvemshop, redireciona.
+    //    ancestorOrigins é Chromium; document.referrer é o fallback.
+    const ancestor =
+      (window.location as any).ancestorOrigins?.[0] || document.referrer;
+    if (ancestor) {
+      try {
+        const host = new URL(ancestor).hostname;
+        const ok = DOMINIOS_OK.some((d) => host === d || host.endsWith("." + d));
+        if (!ok) {
+          window.location.replace(DESTINO);
+          return;
+        }
+      } catch {
+        // se não der pra parsear, não bloqueia (o JWT do Nexo segura os dados)
+      }
+    }
+
+    setLiberado(true);
   }, []);
 
   // conecta ao admin (Nexo)
@@ -98,14 +130,9 @@ export default function AdminApp() {
     setSalvo(false);
   };
 
-  if (!emIframe) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" height="100vh" padding="4">
-        <Text textAlign="center">
-          Este aplicativo só funciona dentro do painel da Nuvemshop.
-        </Text>
-      </Box>
-    );
+  // enquanto o guard não liberar (ou está redirecionando), não mostra nada
+  if (!liberado) {
+    return null;
   }
 
   if (!conectado) {

@@ -2,8 +2,11 @@
 
 import dynamic from "next/dynamic";
 
-const AdminApp = dynamic(() => import("@/components/AdminApp"), { ssr: false });
+// carrega só no cliente (Nexo/ErrorBoundary tocam window -> sem SSR)
+const AdminShell = dynamic(() => import("@/components/AdminShell"), {
+  ssr: false,
+});
 
 export default function Page() {
-  return <AdminApp />;
+  return <AdminShell />;
 }
