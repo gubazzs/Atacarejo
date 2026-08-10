@@ -1,19 +1,16 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { originPermitido } from "@/lib/allowedOrigin";
 
+// Rota PÚBLICA: o storefront de qualquer loja lê os preços de atacado.
+// CORS aberto de propósito — preços não são segredo (aparecem na vitrine) e cada
+// loja tem um domínio/origem diferente. A proteção fica no rate limit (middleware)
+// e no redirect de navegação direta.
 export async function GET(
-  req: Request,
+  _req: Request,
   { params }: { params: Promise<{ storeId: string }> }
 ) {
-  const origin = originPermitido(req);
-  if (!origin) {
-    // origem não permitida -> redireciona sem revelar o motivo
-    return NextResponse.redirect("https://nextcubeinc.com");
-  }
-
-  const { storeId } = await params; // Next 15: params é Promise
-  const cors = { "Access-Control-Allow-Origin": origin };
+  const { storeId } = await params;
+  const cors = { "Access-Control-Allow-Origin": "*" };
 
   const { data, error } = await supabase
     .from("wholesale_prices")
