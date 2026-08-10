@@ -130,6 +130,21 @@ export default function AdminApp() {
     setSalvo(false);
   };
 
+  // pega o valor da 1ª variante do produto e replica pras demais
+  const replicarPreco = (produto: Product) => {
+    const primeira = produto.variants[0];
+    if (!primeira) return;
+    const valor = precos[primeira.id] ?? "";
+    setPrecos((prev) => {
+      const next = { ...prev };
+      produto.variants.forEach((v) => {
+        next[v.id] = valor;
+      });
+      return next;
+    });
+    setSalvo(false);
+  };
+
   // enquanto o guard não liberar (ou está redirecionando), não mostra nada
   if (!liberado) {
     return null;
@@ -228,13 +243,22 @@ export default function AdminApp() {
 
                         <Table.Cell>
                           <Box display="flex" flexDirection="column" gap="2">
-                            {produto.variants.map((v) => (
-                              <Input
-                                key={v.id}
-                                placeholder="R$"
-                                value={precos[v.id] ?? ""}
-                                onChange={(e) => setPreco(v.id, e.target.value)}
-                              />
+                            {produto.variants.map((v, idx) => (
+                              <Box key={v.id} display="flex" gap="2" alignItems="center">
+                                <Input
+                                  placeholder="R$"
+                                  value={precos[v.id] ?? ""}
+                                  onChange={(e) => setPreco(v.id, e.target.value)}
+                                />
+                                {idx === 0 && produto.variants.length > 1 && (
+                                  <Button
+                                    onClick={() => replicarPreco(produto)}
+                                    title="Aplicar este valor a todas as variantes"
+                                  >
+                                    Aplicar a todas
+                                  </Button>
+                                )}
+                              </Box>
                             ))}
                           </Box>
                         </Table.Cell>
