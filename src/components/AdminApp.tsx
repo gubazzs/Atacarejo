@@ -255,7 +255,7 @@ export default function AdminApp() {
                                     onClick={() => replicarPreco(produto)}
                                     title="Aplicar este valor a todas as variantes"
                                   >
-                                    Aplicar a todas
+                                    Todos
                                   </Button>
                                 )}
                               </Box>

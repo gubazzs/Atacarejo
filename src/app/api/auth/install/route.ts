@@ -8,6 +8,7 @@ import {
 } from "@/lib/discounts";
 import { registerShippingBusinessRule } from "@/lib/shipping";
 import { registerPaymentsBusinessRule } from "@/lib/payments";
+import { syncStoreOptions } from "@/lib/syncOptions";
 
 export async function GET(req: Request) {
   const code = new URL(req.url).searchParams.get("code");
@@ -56,6 +57,8 @@ export async function GET(req: Request) {
       storeId,
       `${process.env.SUPABASE_URL}/functions/v1/payments-callback`
     );
+    // Espelha o catálogo de opções (frete/pagamento) no Supabase pros callbacks lerem.
+    await syncStoreOptions(storeId);
   } catch (e) {
     console.error("Erro setup atacado:", e);
   }
