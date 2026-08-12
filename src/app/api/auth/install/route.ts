@@ -9,6 +9,7 @@ import {
 import { registerShippingBusinessRule } from "@/lib/shipping";
 import { registerPaymentsBusinessRule } from "@/lib/payments";
 import { syncStoreOptions } from "@/lib/syncOptions";
+import { nuvemshopClient } from "@/lib/tiendanube";
 
 export async function GET(req: Request) {
   const code = new URL(req.url).searchParams.get("code");
@@ -63,5 +64,22 @@ export async function GET(req: Request) {
     console.error("Erro setup atacado:", e);
   }
 
+  // Redireciona pro app dentro do admin da loja, em vez de devolver o JSON cru.
+  // O domínio não vem no callback (só o `code`); pegamos via GET /store -> original_domain.
+  // O id do app é o próprio client_id (app_id === client_id na Nuvemshop).
+  try {
+    const client = await nuvemshopClient(storeId);
+    const { data: store } = await client.get(`${storeId}/store?fields=original_domain`);
+    const domain = store?.original_domain as string | undefined;
+    if (domain) {
+      return NextResponse.redirect(
+        `https://${domain}/admin/apps/${process.env.CLIENT_ID}`
+      );
+    }
+  } catch (e) {
+    console.error("Erro ao montar redirect pós-install:", e);
+  }
+
+  // fallback: se não conseguir o domínio, volta pro comportamento antigo
   return NextResponse.json(cred);
 }
