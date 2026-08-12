@@ -6,6 +6,8 @@ import {
   registerCallback,
   registerUninstallWebhook,
 } from "@/lib/discounts";
+import { registerShippingBusinessRule } from "@/lib/shipping";
+import { registerPaymentsBusinessRule } from "@/lib/payments";
 
 export async function GET(req: Request) {
   const code = new URL(req.url).searchParams.get("code");
@@ -41,6 +43,18 @@ export async function GET(req: Request) {
     await registerUninstallWebhook(
       storeId,
       `${process.env.APP_URL}/api/webhooks/app-uninstalled`
+    );
+    // Business Rules de frete: no atacado escondemos o varejo e deixamos só "A Combinar".
+    // Requer escopo read_shipping + app habilitada para Business Rules pelos parceiros.
+    await registerShippingBusinessRule(
+      storeId,
+      `${process.env.SUPABASE_URL}/functions/v1/shipping-callback`
+    );
+    // Business Rules de pagamento: no atacado deixamos só o Pix ativo.
+    // Requer escopos read_payment_options + read_payments (mesma habilitação de Business Rules).
+    await registerPaymentsBusinessRule(
+      storeId,
+      `${process.env.SUPABASE_URL}/functions/v1/payments-callback`
     );
   } catch (e) {
     console.error("Erro setup atacado:", e);
