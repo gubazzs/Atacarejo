@@ -1,22 +1,27 @@
 import { nuvemshopClient } from "./tiendanube";
+import type { RegisterResult } from "./shipping";
 
 // Registra o callback de Business Rules do domínio "payments".
-// A Nuvemshop passa a chamar essa URL no evento `payments/before-filter` (checkout)
-// pra saber quais meios de pagamento devemos esconder. No atacado, deixamos só o Pix.
+// A Nuvemshop passa a chamar essa URL no evento `payments/before-filter` (checkout).
 //
-// Pré-requisitos (fora do código):
-//   - App com escopos `read_payment_options` e `read_payments`.
-//   - App habilitada para Business Rules pelo time de parceiros
-//     (mesma habilitação usada no shipping — não é um pedido separado).
+// Pré-requisitos (fora do código): escopos read_payment_options + read_payments + app
+// habilitada para Business Rules pelos parceiros. Sem isso, o PUT volta 401/403 e o
+// callback NÃO é registrado (0 invocações).
 //
-// Idempotente: o PUT sobrescreve o callback existente.
+// Não lança: devolve o resultado.
 export async function registerPaymentsBusinessRule(
   storeId: number,
   url: string
-): Promise<void> {
-  const client = await nuvemshopClient(storeId);
-  await client.put(`${storeId}/business_rules/integrations/payments`, {
-    url,
-    event: "payments/before-filter",
-  });
+): Promise<RegisterResult> {
+  try {
+    const client = await nuvemshopClient(storeId);
+    await client.put(`${storeId}/business_rules/integrations/payments`, {
+      url,
+      event: "payments/before-filter",
+    });
+    return { ok: true };
+  } catch (e) {
+    const err = e as { response?: { status?: number }; message?: string };
+    return { ok: false, status: err?.response?.status, error: err?.message };
+  }
 }

@@ -1,23 +1,32 @@
 import { nuvemshopClient } from "./tiendanube";
 
+export interface RegisterResult {
+  ok: boolean;
+  status?: number;
+  error?: string;
+}
+
 // Registra o callback de Business Rules do domínio "shipping".
-// A Nuvemshop passa a chamar essa URL no evento `shipping/before-filter` (checkout)
-// pra saber quais opções de frete devemos esconder.
+// A Nuvemshop passa a chamar essa URL no evento `shipping/before-filter` (checkout).
 //
-// Pré-requisitos (fora do código):
-//   - App com escopo `read_shipping`.
-//   - App habilitada para Business Rules pelo time de parceiros
-//     (partners@nuvemshop.com.br / partners@tiendanube.com).
+// Pré-requisitos (fora do código): escopo read_shipping + app habilitada para
+// Business Rules pelo time de parceiros. Sem isso, o PUT volta 401/403 e o callback
+// NÃO é registrado (a Nuvemshop nunca chama a function -> 0 invocações).
 //
-// Idempotente: o PUT sobrescreve o callback existente, então pode rodar em toda
-// (re)instalação sem duplicar.
+// Não lança: devolve o resultado pra o install/diagnóstico não abortar os próximos passos.
 export async function registerShippingBusinessRule(
   storeId: number,
   url: string
-): Promise<void> {
-  const client = await nuvemshopClient(storeId);
-  await client.put(`${storeId}/business_rules/integrations/shipping`, {
-    url,
-    event: "shipping/before-filter",
-  });
+): Promise<RegisterResult> {
+  try {
+    const client = await nuvemshopClient(storeId);
+    await client.put(`${storeId}/business_rules/integrations/shipping`, {
+      url,
+      event: "shipping/before-filter",
+    });
+    return { ok: true };
+  } catch (e) {
+    const err = e as { response?: { status?: number }; message?: string };
+    return { ok: false, status: err?.response?.status, error: err?.message };
+  }
 }
