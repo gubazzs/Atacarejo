@@ -21,7 +21,15 @@ export async function registerPaymentsBusinessRule(
     });
     return { ok: true };
   } catch (e) {
-    const err = e as { response?: { status?: number }; message?: string };
-    return { ok: false, status: err?.response?.status, error: err?.message };
+    const err = e as {
+      response?: { status?: number; data?: unknown };
+      message?: string;
+    };
+    return {
+      ok: false,
+      status: err?.response?.status,
+      error: err?.message,
+      body: err?.response?.data,
+    };
   }
 }

@@ -4,6 +4,7 @@ export interface RegisterResult {
   ok: boolean;
   status?: number;
   error?: string;
+  body?: unknown; // corpo da resposta da Nuvemshop (razão exata do erro)
 }
 
 // Registra o callback de Business Rules do domínio "shipping".
@@ -26,7 +27,15 @@ export async function registerShippingBusinessRule(
     });
     return { ok: true };
   } catch (e) {
-    const err = e as { response?: { status?: number }; message?: string };
-    return { ok: false, status: err?.response?.status, error: err?.message };
+    const err = e as {
+      response?: { status?: number; data?: unknown };
+      message?: string;
+    };
+    return {
+      ok: false,
+      status: err?.response?.status,
+      error: err?.message,
+      body: err?.response?.data,
+    };
   }
 }

@@ -53,6 +53,7 @@ export default function AdminApp() {
       "nuvemshop.com.br",
       "nuvemshop.com",
       "lojavirtualnuvem.com.br",
+      "lojavirtualnuvem.com",
     ];
 
     // 1) não está em iframe -> abriram a URL direto
@@ -89,6 +90,17 @@ export default function AdminApp() {
     });
   }, []);
 
+  // espelha as opções de frete/pagamento no Supabase (fire-and-forget).
+  // roda toda vez que o app abre, pra pegar mudanças feitas fora do app
+  // (ex: lojista cadastrou a opção "A Combinar" depois do install).
+  useEffect(() => {
+    if (!conectado) return;
+    api
+      .post("/api/sync-options")
+      .then((r) => console.log("[sync-options]", r.data))
+      .catch((e) => console.error("[sync-options] falhou:", e));
+  }, [conectado]);
+
   // busca produtos + preços salvos
   useEffect(() => {
     if (!conectado) return;
@@ -122,6 +134,19 @@ export default function AdminApp() {
       console.error("Falha ao salvar:", e);
     } finally {
       setSalvando(false);
+    }
+  };
+
+  // DIAGNÓSTICO TEMPORÁRIO: registra os callbacks de Business Rules e mostra o status.
+  // status 401/403 = trava de habilitação/escopo. ok:true = registrado.
+  const testarBusinessRules = async () => {
+    try {
+      const r = await api.post("/api/register-business-rules");
+      console.log("[business-rules]", r.data);
+      alert("Business Rules:\n" + JSON.stringify(r.data, null, 2));
+    } catch (e) {
+      console.error("[business-rules] erro:", e);
+      alert("Erro ao chamar /api/register-business-rules — ver console.");
     }
   };
 
@@ -173,6 +198,7 @@ export default function AdminApp() {
               <Icon source={<CogIcon />} color="currentColor" />
               Configurações
             </Button>
+            <Button onClick={testarBusinessRules}>Testar BR</Button>
             <Button appearance="primary" onClick={salvar} disabled={salvando}>
             {salvando ? (
               <Spinner color="currentColor" size="small" />
@@ -243,7 +269,21 @@ export default function AdminApp() {
 
                         <Table.Cell>
                           <Box display="flex" flexDirection="column" gap="2">
-                            {produto.variants.map((v, idx) => (
+                            {produto.variants.map((v, idx) => {
+                              console.log("INPUT", v.id, v.values);
+
+                              return (
+                                <Box key={v.id} display="flex" gap="2" alignItems="center">
+                                  <Input
+                                    placeholder="R$"
+                                    value={precos[v.id] ?? ""}
+                                    onChange={(e) => setPreco(v.id, e.target.value)}
+                                  />
+                                </Box>
+                              );
+                            })}
+
+                            {/* {produto.variants.map((v, idx) => (
                               <Box key={v.id} display="flex" gap="2" alignItems="center">
                                 <Input
                                   placeholder="R$"
@@ -259,7 +299,7 @@ export default function AdminApp() {
                                   </Button>
                                 )}
                               </Box>
-                            ))}
+                            ))} */}
                           </Box>
                         </Table.Cell>
                       </Table.Row>
