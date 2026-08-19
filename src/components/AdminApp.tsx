@@ -236,17 +236,33 @@ export default function AdminApp() {
                   <Table.Body>
                     {produtos.map((produto) => (
                       <Table.Row key={produto.id}>
-                        {/* Produto */}
+                        {/* Img */}
                         <Table.Cell>
                           <Box display="flex" flexDirection="column">
-                            {produto.variants.map((v) => (
+                            {produto.variants.map((v, idx) => (
                               <Box
                                 key={v.id}
                                 height={`${VARIANT_ROW_HEIGHT}px`}
                                 display="flex"
                                 alignItems="center"
                               >
-                                {produto.name?.pt ?? produto.name?.es ?? "(sem nome)"}
+                                {idx === 0 ? (produto.name?.pt ?? produto.name?.es ?? "(sem nome)") : ""}
+                              </Box>
+                            ))}
+                          </Box>
+                        </Table.Cell>
+
+                        {/* Produto */}
+                        <Table.Cell>
+                          <Box display="flex" flexDirection="column">
+                            {produto.variants.map((v, idx) => (
+                              <Box
+                                key={v.id}
+                                height={`${VARIANT_ROW_HEIGHT}px`}
+                                display="flex"
+                                alignItems="center"
+                              >
+                                {idx === 0 ? (produto.name?.pt ?? produto.name?.es ?? "(sem nome)") : ""}
                               </Box>
                             ))}
                           </Box>
