@@ -6,7 +6,6 @@ import { Layout, Page } from "@nimbus-ds/patterns";
 import {
   Box,
   Button,
-  Card,
   Icon,
   Input,
   Spinner,
@@ -25,6 +24,7 @@ interface Variant {
   stock: number | null;
   values: { pt?: string; es?: string }[];
 }
+
 interface Product {
   id: number;
   name: { pt?: string; es?: string };
@@ -40,50 +40,30 @@ export default function AdminApp() {
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [salvo, setSalvo] = useState(false);
+
   const [produtos, setProdutos] = useState<Product[]>([]);
   const [precos, setPrecos] = useState<Record<number, string>>({});
-  // só libera a tela depois de passar no guard (iframe + domínio Nuvemshop)
+
+  // Busca
+  const [busca, setBusca] = useState("");
+
+  // Só libera a tela depois de passar no guard
   const [liberado, setLiberado] = useState(false);
 
-  // guard: o app só roda embutido no admin da Nuvemshop.
-  // fora do iframe OU embutido por um domínio que não é Nuvemshop -> redireciona.
+  // Guard: o app só roda embutido no admin da Nuvemshop.
   useEffect(() => {
     const DESTINO = "https://nextcubeinc.com";
-    const DOMINIOS_OK = [
-      "tiendanube.com",
-      "nuvemshop.com.br",
-      "nuvemshop.com",
-      "lojavirtualnuvem.com.br",
-      "lojavirtualnuvem.com",
-    ];
 
-    // 1) não está em iframe -> abriram a URL direto
+    // 1) Não está em iframe -> abriram a URL diretamente
     if (window.self === window.top) {
       window.location.replace(DESTINO);
       return;
     }
 
-    // 2) domínio do pai (quando dá pra saber): se claramente NÃO é Nuvemshop, redireciona.
-    //    ancestorOrigins é Chromium; document.referrer é o fallback.
-    const ancestor =
-      (window.location as any).ancestorOrigins?.[0] || document.referrer;
-    if (ancestor) {
-      try {
-        const host = new URL(ancestor).hostname;
-        const ok = DOMINIOS_OK.some((d) => host === d || host.endsWith("." + d));
-        if (!ok) {
-          window.location.replace(DESTINO);
-          return;
-        }
-      } catch {
-        // se não der pra parsear, não bloqueia (o JWT do Nexo segura os dados)
-      }
-    }
-
     setLiberado(true);
   }, []);
 
-  // conecta ao admin (Nexo)
+  // Conecta ao admin (Nexo)
   useEffect(() => {
     connect(nexo).then(() => {
       setConectado(true);
@@ -91,43 +71,61 @@ export default function AdminApp() {
     });
   }, []);
 
-  // espelha as opções de frete/pagamento no Supabase (fire-and-forget).
-  // roda toda vez que o app abre, pra pegar mudanças feitas fora do app
-  // (ex: lojista cadastrou a opção "A Combinar" depois do install).
+  // Espelha as opções de frete/pagamento no Supabase
   useEffect(() => {
     if (!conectado) return;
+
     api
       .post("/api/sync-options")
       .then((r) => console.log("[sync-options]", r.data))
       .catch((e) => console.error("[sync-options] falhou:", e));
   }, [conectado]);
 
-  // busca produtos + preços salvos
+  // Busca produtos + preços salvos
   useEffect(() => {
     if (!conectado) return;
-    Promise.all([api.get("/api/products"), api.get("/api/wholesale")])
+
+    Promise.all([
+      api.get("/api/products"),
+      api.get("/api/wholesale"),
+    ])
       .then(([prod, whole]) => {
         setProdutos(prod.data);
+
         const mapa: Record<number, string> = {};
-        whole.data.forEach((i: { variant_id: number; price_atc: string }) => {
-          mapa[i.variant_id] = Number(i.price_atc) > 0 ? String(i.price_atc) : "";
-        });
+
+        whole.data.forEach(
+          (i: { variant_id: number; price_atc: string }) => {
+            mapa[i.variant_id] =
+              Number(i.price_atc) > 0 ? String(i.price_atc) : "";
+          }
+        );
+
         setPrecos(mapa);
       })
-      .catch((e) => console.error("Falha ao carregar:", e))
-      .finally(() => setCarregando(false));
+      .catch((e) => {
+        console.error("Falha ao carregar:", e);
+      })
+      .finally(() => {
+        setCarregando(false);
+      });
   }, [conectado]);
 
+  // Salva todos os preços
   const salvar = async () => {
     setSalvando(true);
     setSalvo(false);
+
     const items = produtos.flatMap((p) =>
       p.variants.map((v) => ({
         product_id: p.id,
         variant_id: v.id,
-        price_atc: precos[v.id]?.trim() ? precos[v.id] : "0",
+        price_atc: precos[v.id]?.trim()
+          ? precos[v.id]
+          : "0",
       }))
     );
+
     try {
       await api.post("/api/wholesale", { items });
       setSalvo(true);
@@ -138,214 +136,332 @@ export default function AdminApp() {
     }
   };
 
-  // DIAGNÓSTICO TEMPORÁRIO: registra os callbacks de Business Rules e mostra o status.
-  // status 401/403 = trava de habilitação/escopo. ok:true = registrado.
-  const testarBusinessRules = async () => {
-    try {
-      const r = await api.post("/api/register-business-rules");
-      console.log("[business-rules]", r.data);
-      alert("Business Rules:\n" + JSON.stringify(r.data, null, 2));
-    } catch (e) {
-      console.error("[business-rules] erro:", e);
-      alert("Erro ao chamar /api/register-business-rules — ver console.");
-    }
-  };
-
+  // Atualiza preço de uma variante
   const setPreco = (variantId: number, valor: string) => {
-    setPrecos((prev) => ({ ...prev, [variantId]: valor }));
+    setPrecos((prev) => ({
+      ...prev,
+      [variantId]: valor,
+    }));
+
     setSalvo(false);
   };
 
-  // pega o valor da 1ª variante do produto e replica pras demais
+  // Pega o valor da primeira variante e replica para todas
   const replicarPreco = (produto: Product) => {
     const primeira = produto.variants[0];
+
     if (!primeira) return;
+
     const valor = precos[primeira.id] ?? "";
+
     setPrecos((prev) => {
       const next = { ...prev };
+
       produto.variants.forEach((v) => {
         next[v.id] = valor;
       });
+
       return next;
     });
+
     setSalvo(false);
   };
 
-  // enquanto o guard não liberar (ou está redirecionando), não mostra nada
+  // Produtos filtrados pela busca
+  const produtosFiltrados = produtos.filter((produto) => {
+    const termo = busca.trim().toLowerCase();
+
+    if (!termo) return true;
+
+    const nome = (
+      produto.name?.pt ??
+      produto.name?.es ??
+      ""
+    ).toLowerCase();
+
+    return nome.includes(termo);
+  });
+
+  // Enquanto o guard não liberar
   if (!liberado) {
     return null;
   }
 
+  // Enquanto conecta ao Nexo
   if (!conectado) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
+      <Box
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
+        height="100vh"
+      >
         <Text>Conectando...</Text>
       </Box>
     );
   }
 
-  // "roteamento" da SPA: troca de view por estado
+  // Configurações
   if (view === "config") {
-    return <ConfigView onVoltar={() => setView("produtos")} />;
+    return (
+      <ConfigView
+        onVoltar={() => setView("produtos")}
+      />
+    );
   }
+
+  const THUMB_SIZE = 128
 
   return (
     <Page maxWidth="auto">
       <Page.Header
         title="Atacarejo"
         buttonStack={
-          <Box display="flex" flexDirection={'row'} gap={'2'}>
-            <Button onClick={() => setView("config")}>
-              <Icon source={<CogIcon />} color="currentColor" />
+          <Box
+            display="flex"
+            flexDirection="row"
+            gap="2"
+          >
+            <Button
+              onClick={() => setView("config")}
+            >
+              <Icon
+                source={<CogIcon />}
+                color="currentColor"
+              />
               Configurações
             </Button>
-            {/* <Button onClick={testarBusinessRules}>Testar BR</Button> */}
-            <Button appearance="primary" onClick={salvar} disabled={salvando}>
-            {salvando ? (
-              <Spinner color="currentColor" size="small" />
-            ) : (
-              <Icon source={<DisketteIcon />} color="currentColor" />
-            )}
-            Salvar
-          </Button>
+
+            <Button
+              appearance="primary"
+              onClick={salvar}
+              disabled={salvando}
+            >
+              {salvando ? (
+                <Spinner
+                  color="currentColor"
+                  size="small"
+                />
+              ) : (
+                <Icon
+                  source={<DisketteIcon />}
+                  color="currentColor"
+                />
+              )}
+
+              Salvar
+            </Button>
           </Box>
         }
       />
+
       <Page.Body>
         <Layout columns="1">
           <Layout.Section>
             {carregando ? (
-              <Box display="flex" justifyContent="center" padding="4">
+              <Box
+                display="flex"
+                justifyContent="center"
+                padding="4"
+              >
                 <Spinner />
               </Box>
             ) : (
               <>
                 {salvo && (
                   <Box paddingBottom="2">
-                    <Text color="success-textLow">Salvo!</Text>
+                    <Text color="success-textLow">
+                      Salvo!
+                    </Text>
                   </Box>
                 )}
+
+                {/* Busca */}
+                <Input
+                  placeholder="Buscar produto..."
+                  value={busca}
+                  onChange={(e) =>
+                    setBusca(e.target.value)
+                  }
+                />
+
                 <Table>
                   <Table.Head>
                     <Table.Row>
                       {HEADERS.map((h) => (
-                        <Table.Cell key={h}>{h}</Table.Cell>
+                        <Table.Cell key={h}>
+                          {h}
+                        </Table.Cell>
                       ))}
                     </Table.Row>
                   </Table.Head>
-                  <Table.Body>
-                    {produtos.map((produto) => (
-                      <Table.Row key={produto.id}>
-                        {/* Img
-                        <Table.Cell>
-                          <Box display="flex" flexDirection="column">
-                            {produto.variants.map((v, idx) => (
-                              <Box
-                                key={v.id}
-                                height={`${VARIANT_ROW_HEIGHT}px`}
-                                display="flex"
-                                alignItems="center"
-                              >
-                                {idx === 0 ? (produto.name?.pt ?? produto.name?.es ?? "(sem nome)") : ""}
-                              </Box>
-                            ))}
-                          </Box>
-                        </Table.Cell> */}
 
+                  <Table.Body>
+                    {produtosFiltrados.map((produto) => (
+                      <Table.Row key={produto.id}>
                         {/* Produto */}
                         <Table.Cell>
-                          <Box display="flex" flexDirection="column">
-                            {produto.variants.map((v, idx) => (
+                          <Box display="flex" flexDirection="row" gap="2" alignItems="flex-start">
+                            {produto.images?.[0]?.src ? (
+                              <img
+                                src={produto.images[0].src}
+                                alt={produto.name?.pt ?? produto.name?.es ?? ""}
+                                width={THUMB_SIZE}
+                                height={THUMB_SIZE}
+                                style={{ objectFit: "cover", borderRadius: "8px", flexShrink: 0 }}
+                              />
+                            ) : (
                               <Box
-                                key={v.id}
-                                height={`${VARIANT_ROW_HEIGHT}px`}
-                                display="flex"
-                                alignItems="center"
+                                width={`${THUMB_SIZE}px`}
+                                height={`${THUMB_SIZE}px`}
+                                backgroundColor="neutral-surface"
+                                borderRadius="3"
+                                flexShrink="0"
                               >
-                                {idx === 0 ? (produto.name?.pt ?? produto.name?.es ?? "(sem nome)") : ""}
+                                <img
+                                src={'NoImage.jpg'}
+                                alt={produto.name?.pt ?? produto.name?.es ?? ""}
+                                width={THUMB_SIZE}
+                                height={THUMB_SIZE}
+                                style={{ objectFit: "cover", borderRadius: "8px", flexShrink: 0 }}
+                              />
                               </Box>
-                            ))}
+
+                            )}
+
+                            <Box display="flex" flexDirection="column">
+                              {produto.variants.map((v, idx) => (
+                                <Box key={v.id} height={`${VARIANT_ROW_HEIGHT}px`} display="flex" alignItems="center">
+                                  {idx === 0 ? produto.name?.pt ?? produto.name?.es ?? "(sem nome)" : ""}
+                                </Box>
+                              ))}
+                            </Box>
                           </Box>
                         </Table.Cell>
 
                         {/* Variantes */}
                         <Table.Cell>
-                          <Box display="flex" flexDirection="column">
-                            {produto.variants.map((v) => (
-                              <Box
-                                key={v.id}
-                                height={`${VARIANT_ROW_HEIGHT}px`}
-                                display="flex"
-                                alignItems="center"
-                              >
-                                <Text>
-                                  {v.values.map((val) => val.pt ?? val.es).join(" / ") ||
-                                    v.sku ||
-                                    `#${v.id}`}
-                                </Text>
-                              </Box>
-                            ))}
+                          <Box
+                            display="flex"
+                            flexDirection="column"
+                          >
+                            {produto.variants.map(
+                              (v) => (
+                                <Box
+                                  key={v.id}
+                                  height={`${VARIANT_ROW_HEIGHT}px`}
+                                  display="flex"
+                                  alignItems="center"
+                                >
+                                  <Text>
+                                    {v.values
+                                      .map(
+                                        (val) =>
+                                          val.pt ??
+                                          val.es
+                                      )
+                                      .join(" / ") ||
+                                      v.sku ||
+                                      `#${v.id}`}
+                                  </Text>
+                                </Box>
+                              )
+                            )}
                           </Box>
                         </Table.Cell>
 
                         {/* Estoque */}
                         <Table.Cell>
-                          <Box display="flex" flexDirection="column">
-                            {produto.variants.map((v) => (
-                              <Box
-                                key={v.id}
-                                height={`${VARIANT_ROW_HEIGHT}px`}
-                                display="flex"
-                                alignItems="center"
-                              >
-                                <Text>{v.stock ?? "∞"}</Text>
-                              </Box>
-                            ))}
+                          <Box
+                            display="flex"
+                            flexDirection="column"
+                          >
+                            {produto.variants.map(
+                              (v) => (
+                                <Box
+                                  key={v.id}
+                                  height={`${VARIANT_ROW_HEIGHT}px`}
+                                  display="flex"
+                                  alignItems="center"
+                                >
+                                  <Text>
+                                    {v.stock ?? "∞"}
+                                  </Text>
+                                </Box>
+                              )
+                            )}
                           </Box>
                         </Table.Cell>
 
                         {/* Preço */}
                         <Table.Cell>
-                          <Box display="flex" flexDirection="column">
-                            {produto.variants.map((v) => (
-                              <Box
-                                key={v.id}
-                                height={`${VARIANT_ROW_HEIGHT}px`}
-                                display="flex"
-                                alignItems="center"
-                              >
-                                <Text>R$ {v.price}</Text>
-                              </Box>
-                            ))}
+                          <Box
+                            display="flex"
+                            flexDirection="column"
+                          >
+                            {produto.variants.map(
+                              (v) => (
+                                <Box
+                                  key={v.id}
+                                  height={`${VARIANT_ROW_HEIGHT}px`}
+                                  display="flex"
+                                  alignItems="center"
+                                >
+                                  <Text>
+                                    R$ {v.price}
+                                  </Text>
+                                </Box>
+                              )
+                            )}
                           </Box>
                         </Table.Cell>
 
                         {/* Atacado */}
                         <Table.Cell>
-                          <Box display="flex" flexDirection="column">
-                            {produto.variants.map((v, idx) => (
-                              <Box
-                                key={v.id}
-                                height={`${VARIANT_ROW_HEIGHT}px`}
-                                display="flex"
-                                gap="2"
-                                alignItems="center"
-                              >
-                                <Input
-                                  placeholder="R$"
-                                  value={precos[v.id] ?? ""}
-                                  onChange={(e) => setPreco(v.id, e.target.value)}
-                                />
-                                {idx === 0 && produto.variants.length > 1 && (
-                                  <Button
-                                    onClick={() => replicarPreco(produto)}
-                                    title="Aplicar este valor a todas as variantes"
-                                  >
-                                    Todos
-                                  </Button>
-                                )}
-                              </Box>
-                            ))}
+                          <Box
+                            display="flex"
+                            flexDirection="column"
+                          >
+                            {produto.variants.map(
+                              (v, idx) => (
+                                <Box
+                                  key={v.id}
+                                  height={`${VARIANT_ROW_HEIGHT}px`}
+                                  display="flex"
+                                  alignItems="center"
+                                >
+                                  <Input
+                                    placeholder="R$"
+                                    value={
+                                      precos[v.id] ?? ""
+                                    }
+                                    onChange={(e) =>
+                                      setPreco(
+                                        v.id,
+                                        e.target.value
+                                      )
+                                    }
+                                  />
+
+                                  {idx === 0 &&
+                                    produto.variants.length >
+                                      1 && (
+                                      <Box marginLeft="2">
+                                        <Button
+                                          onClick={() =>
+                                            replicarPreco(
+                                              produto
+                                            )
+                                          }
+                                          title="Aplicar este valor a todas as variantes"
+                                        >
+                                          Todos
+                                        </Button>
+                                      </Box>
+                                    )}
+                                </Box>
+                              )
+                            )}
                           </Box>
                         </Table.Cell>
                       </Table.Row>
