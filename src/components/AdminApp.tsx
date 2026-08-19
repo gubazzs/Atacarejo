@@ -236,7 +236,7 @@ export default function AdminApp() {
                   <Table.Body>
                     {produtos.map((produto) => (
                       <Table.Row key={produto.id}>
-                        {/* Img */}
+                        {/* Img
                         <Table.Cell>
                           <Box display="flex" flexDirection="column">
                             {produto.variants.map((v, idx) => (
@@ -250,7 +250,7 @@ export default function AdminApp() {
                               </Box>
                             ))}
                           </Box>
-                        </Table.Cell>
+                        </Table.Cell> */}
 
                         {/* Produto */}
                         <Table.Cell>
