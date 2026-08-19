@@ -25,10 +25,17 @@ interface Variant {
   values: { pt?: string; es?: string }[];
 }
 
+interface ProductImage {
+  id: number;
+  src: string;
+}
+
+
 interface Product {
   id: number;
   name: { pt?: string; es?: string };
   variants: Variant[];
+  images?: ProductImage[];
 }
 
 const HEADERS = ["Produto", "Variantes", "Estoque", "Preço", "Atacado"];
