@@ -32,6 +32,7 @@ interface Product {
 }
 
 const HEADERS = ["Produto", "Variantes", "Estoque", "Preço", "Atacado"];
+const VARIANT_ROW_HEIGHT = 40;
 
 export default function AdminApp() {
   const [conectado, setConectado] = useState(false);
@@ -198,7 +199,7 @@ export default function AdminApp() {
               <Icon source={<CogIcon />} color="currentColor" />
               Configurações
             </Button>
-            <Button onClick={testarBusinessRules}>Testar BR</Button>
+            {/* <Button onClick={testarBusinessRules}>Testar BR</Button> */}
             <Button appearance="primary" onClick={salvar} disabled={salvando}>
             {salvando ? (
               <Spinner color="currentColor" size="small" />
@@ -235,56 +236,85 @@ export default function AdminApp() {
                   <Table.Body>
                     {produtos.map((produto) => (
                       <Table.Row key={produto.id}>
+                        {/* Produto */}
                         <Table.Cell>
-                          {produto.name?.pt ?? produto.name?.es ?? "(sem nome)"}
-                        </Table.Cell>
-
-                        <Table.Cell>
-                          <Box display="flex" flexDirection="column" gap="8">
+                          <Box display="flex" flexDirection="column">
                             {produto.variants.map((v) => (
-                              <Text key={v.id}>
-                                {v.values.map((val) => val.pt ?? val.es).join(" / ") ||
-                                  v.sku ||
-                                  `#${v.id}`}
-                              </Text>
+                              <Box
+                                key={v.id}
+                                height={`${VARIANT_ROW_HEIGHT}px`}
+                                display="flex"
+                                alignItems="center"
+                              >
+                                {produto.name?.pt ?? produto.name?.es ?? "(sem nome)"}
+                              </Box>
                             ))}
                           </Box>
                         </Table.Cell>
 
+                        {/* Variantes */}
                         <Table.Cell>
-                          <Box display="flex" flexDirection="column" gap="9">
+                          <Box display="flex" flexDirection="column">
                             {produto.variants.map((v) => (
-                              <Text key={v.id}>{v.stock ?? "∞"}</Text>
+                              <Box
+                                key={v.id}
+                                height={`${VARIANT_ROW_HEIGHT}px`}
+                                display="flex"
+                                alignItems="center"
+                              >
+                                <Text>
+                                  {v.values.map((val) => val.pt ?? val.es).join(" / ") ||
+                                    v.sku ||
+                                    `#${v.id}`}
+                                </Text>
+                              </Box>
                             ))}
                           </Box>
                         </Table.Cell>
 
+                        {/* Estoque */}
                         <Table.Cell>
-                          <Box display="flex" flexDirection="column" gap="8">
+                          <Box display="flex" flexDirection="column">
                             {produto.variants.map((v) => (
-                              <Text key={v.id}>R$ {v.price}</Text>
+                              <Box
+                                key={v.id}
+                                height={`${VARIANT_ROW_HEIGHT}px`}
+                                display="flex"
+                                alignItems="center"
+                              >
+                                <Text>{v.stock ?? "∞"}</Text>
+                              </Box>
                             ))}
                           </Box>
                         </Table.Cell>
 
+                        {/* Preço */}
                         <Table.Cell>
-                          <Box display="flex" flexDirection="column" gap="2">
-                            {produto.variants.map((v, idx) => {
-                              console.log("INPUT", v.id, v.values);
+                          <Box display="flex" flexDirection="column">
+                            {produto.variants.map((v) => (
+                              <Box
+                                key={v.id}
+                                height={`${VARIANT_ROW_HEIGHT}px`}
+                                display="flex"
+                                alignItems="center"
+                              >
+                                <Text>R$ {v.price}</Text>
+                              </Box>
+                            ))}
+                          </Box>
+                        </Table.Cell>
 
-                              return (
-                                <Box key={v.id} display="flex" gap="2" alignItems="center">
-                                  <Input
-                                    placeholder="R$"
-                                    value={precos[v.id] ?? ""}
-                                    onChange={(e) => setPreco(v.id, e.target.value)}
-                                  />
-                                </Box>
-                              );
-                            })}
-
-                            {/* {produto.variants.map((v, idx) => (
-                              <Box key={v.id} display="flex" gap="2" alignItems="center">
+                        {/* Atacado */}
+                        <Table.Cell>
+                          <Box display="flex" flexDirection="column">
+                            {produto.variants.map((v, idx) => (
+                              <Box
+                                key={v.id}
+                                height={`${VARIANT_ROW_HEIGHT}px`}
+                                display="flex"
+                                gap="2"
+                                alignItems="center"
+                              >
                                 <Input
                                   placeholder="R$"
                                   value={precos[v.id] ?? ""}
@@ -299,7 +329,7 @@ export default function AdminApp() {
                                   </Button>
                                 )}
                               </Box>
-                            ))} */}
+                            ))}
                           </Box>
                         </Table.Cell>
                       </Table.Row>
