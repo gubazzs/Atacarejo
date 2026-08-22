@@ -51,10 +51,34 @@ export async function GET(req: Request) {
   const storeId = getStoreId(req);
   if (!storeId) return NextResponse.json({ error: "não autorizado" }, { status: 401 });
 
-  const { data, error } = await supabase
+  const { searchParams } = new URL(req.url);
+
+  // opcional: filtra só os variant_ids da página atual do front,
+  // em vez de trazer os preços da loja inteira toda vez
+  const variantIdsParam = searchParams.get("variant_ids");
+
+  let query = supabase
     .from("wholesale_prices")
     .select("product_id, variant_id, price_atc")
     .eq("store_id", storeId);
+
+  if (variantIdsParam) {
+    const variantIds = variantIdsParam
+      .split(",")
+      .map((v) => Number(v))
+      .filter((v) => Number.isInteger(v));
+
+    if (variantIds.length === 0) {
+      return NextResponse.json({ error: "variant_ids inválido" }, { status: 400 });
+    }
+    if (variantIds.length > MAX_ITEMS) {
+      return NextResponse.json({ error: "muitos ids" }, { status: 400 });
+    }
+
+    query = query.in("variant_id", variantIds);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error("[wholesale GET] erro Supabase:", error);

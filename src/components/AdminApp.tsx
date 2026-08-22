@@ -8,6 +8,7 @@ import {
   Button,
   Icon,
   Input,
+  Pagination,
   Spinner,
   Table,
   Text,
@@ -40,6 +41,8 @@ interface Product {
 
 const HEADERS = ["Produto", "Variantes", "Estoque", "Preço", "Atacado"];
 const VARIANT_ROW_HEIGHT = 40;
+const PER_PAGE = 100;
+const SEARCH_DEBOUNCE_MS = 400;
 
 export default function AdminApp() {
   const [conectado, setConectado] = useState(false);
@@ -51,8 +54,14 @@ export default function AdminApp() {
   const [produtos, setProdutos] = useState<Product[]>([]);
   const [precos, setPrecos] = useState<Record<number, string>>({});
 
-  // Busca
+  // Paginação
+  const [pagina, setPagina] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const pageCount = Math.max(1, Math.ceil(totalCount / PER_PAGE));
+
+  // Busca (server-side, vai como `q` pra Nuvemshop)
   const [busca, setBusca] = useState("");
+  const [buscaDebounced, setBuscaDebounced] = useState("");
 
   // Só libera a tela depois de passar no guard
   const [liberado, setLiberado] = useState(false);
@@ -88,27 +97,55 @@ export default function AdminApp() {
       .catch((e) => console.error("[sync-options] falhou:", e));
   }, [conectado]);
 
-  // Busca produtos + preços salvos
+  // Debounce da busca -> reseta pra página 1 a cada nova busca
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setBuscaDebounced(busca.trim());
+      setPagina(1);
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => clearTimeout(t);
+  }, [busca]);
+
+  // Busca produtos da página atual + preços salvos das variantes dessa página
   useEffect(() => {
     if (!conectado) return;
 
-    Promise.all([
-      api.get("/api/products"),
-      api.get("/api/wholesale"),
-    ])
-      .then(([prod, whole]) => {
-        setProdutos(prod.data);
+    setCarregando(true);
 
-        const mapa: Record<number, string> = {};
+    const params: Record<string, string | number> = { page: pagina };
+    if (buscaDebounced) params.q = buscaDebounced;
 
-        whole.data.forEach(
-          (i: { variant_id: number; price_atc: string }) => {
-            mapa[i.variant_id] =
-              Number(i.price_atc) > 0 ? String(i.price_atc) : "";
-          }
-        );
+    api
+      .get("/api/products", { params })
+      .then((prod) => {
+        const lista: Product[] = prod.data;
+        setProdutos(lista);
+        setTotalCount(Number(prod.headers["x-total-count"] ?? lista.length));
 
-        setPrecos(mapa);
+        const variantIds = lista.flatMap((p) => p.variants.map((v) => v.id));
+
+        if (variantIds.length === 0) {
+          setPrecos({});
+          return;
+        }
+
+        return api
+          .get("/api/wholesale", {
+            params: { variant_ids: variantIds.join(",") },
+          })
+          .then((whole) => {
+            const mapa: Record<number, string> = {};
+
+            whole.data.forEach(
+              (i: { variant_id: number; price_atc: string }) => {
+                mapa[i.variant_id] =
+                  Number(i.price_atc) > 0 ? String(i.price_atc) : "";
+              }
+            );
+
+            setPrecos(mapa);
+          });
       })
       .catch((e) => {
         console.error("Falha ao carregar:", e);
@@ -116,9 +153,9 @@ export default function AdminApp() {
       .finally(() => {
         setCarregando(false);
       });
-  }, [conectado]);
+  }, [conectado, pagina, buscaDebounced]);
 
-  // Salva todos os preços
+  // Salva todos os preços (só os da página atual, que é o que está carregado)
   const salvar = async () => {
     setSalvando(true);
     setSalvo(false);
@@ -173,21 +210,6 @@ export default function AdminApp() {
 
     setSalvo(false);
   };
-
-  // Produtos filtrados pela busca
-  const produtosFiltrados = produtos.filter((produto) => {
-    const termo = busca.trim().toLowerCase();
-
-    if (!termo) return true;
-
-    const nome = (
-      produto.name?.pt ??
-      produto.name?.es ??
-      ""
-    ).toLowerCase();
-
-    return nome.includes(termo);
-  });
 
   // Enquanto o guard não liberar
   if (!liberado) {
@@ -304,7 +326,7 @@ export default function AdminApp() {
                   </Table.Head>
 
                   <Table.Body>
-                    {produtosFiltrados.map((produto) => (
+                    {produtos.map((produto) => (
                       <Table.Row key={produto.id}>
                         {/* Produto */}
                         <Table.Cell>
@@ -475,6 +497,20 @@ export default function AdminApp() {
                     ))}
                   </Table.Body>
                 </Table>
+
+                {pageCount > 1 && (
+                  <Box
+                    display="flex"
+                    justifyContent="center"
+                    paddingTop="4"
+                  >
+                    <Pagination
+                      activePage={pagina}
+                      pageCount={pageCount}
+                      onPageChange={(page) => setPagina(page)}
+                    />
+                  </Box>
+                )}
               </>
             )}
           </Layout.Section>
